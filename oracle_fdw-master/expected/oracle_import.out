@@ -1,0 +1,76 @@
+SET client_min_messages = WARNING;
+CREATE SCHEMA import;
+/* first, import only a table and a materialized view */
+IMPORT FOREIGN SCHEMA "SCOTT"
+   LIMIT TO ("typetest1", ttv, mattest2)
+   FROM SERVER oracle
+   INTO import
+   OPTIONS (case 'lower', collation 'C', skip_views 'true');
+SELECT t.relname, fs.srvname, ft.ftoptions
+FROM pg_foreign_table ft
+     JOIN pg_class t ON ft.ftrelid = t.oid
+     JOIN pg_foreign_server fs ON ft.ftserver = fs.oid
+WHERE relnamespace = 'import'::regnamespace
+ORDER BY t.relname;
+  relname  | srvname |           ftoptions            
+-----------+---------+--------------------------------
+ mattest2  | oracle  | {schema=SCOTT,table=MATTEST2}
+ typetest1 | oracle  | {schema=SCOTT,table=TYPETEST1}
+(2 rows)
+
+/* then import only a view */
+IMPORT FOREIGN SCHEMA "SCOTT"
+   LIMIT TO ("typetest1", ttv, mattest2)
+   FROM SERVER oracle
+   INTO import
+   OPTIONS (case 'lower', skip_tables 'true', skip_matviews 'true');
+SELECT t.relname, fs.srvname, ft.ftoptions
+FROM pg_foreign_table ft
+     JOIN pg_class t ON ft.ftrelid = t.oid
+     JOIN pg_foreign_server fs ON ft.ftserver = fs.oid
+WHERE relnamespace = 'import'::regnamespace
+ORDER BY t.relname;
+  relname  | srvname |           ftoptions            
+-----------+---------+--------------------------------
+ mattest2  | oracle  | {schema=SCOTT,table=MATTEST2}
+ ttv       | oracle  | {schema=SCOTT,table=TTV}
+ typetest1 | oracle  | {schema=SCOTT,table=TYPETEST1}
+(3 rows)
+
+SELECT t.relname, a.attname, a.atttypid::regtype, a.attfdwoptions
+FROM pg_attribute AS a
+   JOIN pg_class AS t ON t.oid = a.attrelid
+WHERE t.relname IN ('typetest1', 'ttv', 'mattest2')
+  AND a.attnum > 0
+  AND t.relnamespace = 'import'::regnamespace
+  AND NOT a.attisdropped
+ORDER BY t.relname, a.attnum;
+  relname  | attname |          atttypid           | attfdwoptions 
+-----------+---------+-----------------------------+---------------
+ mattest2  | id      | integer                     | {key=true}
+ mattest2  | ts1     | timestamp with time zone    | 
+ mattest2  | ts2     | timestamp with time zone    | 
+ mattest2  | ts3     | timestamp with time zone    | 
+ ttv       | id      | integer                     | 
+ ttv       | vc      | character varying           | 
+ typetest1 | id      | integer                     | {key=true}
+ typetest1 | c       | character                   | 
+ typetest1 | nc      | character                   | 
+ typetest1 | vc      | character varying           | 
+ typetest1 | nvc     | character varying           | 
+ typetest1 | lc      | text                        | 
+ typetest1 | lnc     | text                        | 
+ typetest1 | r       | bytea                       | 
+ typetest1 | u       | bytea                       | 
+ typetest1 | lb      | bytea                       | 
+ typetest1 | lr      | bytea                       | 
+ typetest1 | b       | smallint                    | 
+ typetest1 | num     | numeric                     | 
+ typetest1 | fl      | real                        | 
+ typetest1 | db      | double precision            | 
+ typetest1 | d       | timestamp without time zone | 
+ typetest1 | ts      | timestamp with time zone    | 
+ typetest1 | ids     | interval                    | 
+ typetest1 | iym     | interval                    | 
+(25 rows)
+
